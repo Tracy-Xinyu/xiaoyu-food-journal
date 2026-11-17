@@ -169,7 +169,12 @@ p{margin:0}
   box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
 .note > *{position:relative}
-.note-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.6);background:#fff}
+.note-photo{width:100%;height:auto;display:block;border-radius:10px;border:1px solid rgba(255,255,255,.6);background:#fff}
+/* 尺寸框：默认原比例不裁剪，选了框才居中裁 */
+.note-photo.fit1{aspect-ratio:1/1;object-fit:cover}
+.note-photo.fit34{aspect-ratio:3/4;object-fit:cover}
+.note-photo.fit43{aspect-ratio:4/3;object-fit:cover}
+.note-photo.fit169{aspect-ratio:16/9;object-fit:cover}
 .note-title{font-size:15px;font-weight:600;line-height:1.45;word-break:break-word}
 .note-body{font-size:12.8px;color:#4b5563;white-space:pre-wrap;word-break:break-word;line-height:1.72;max-height:132px;overflow:hidden}
 .note-foot{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:4px;flex-wrap:wrap}
@@ -358,7 +363,11 @@ p{margin:0}
 .place-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:17px;padding-top:4px}
 .place{border:1px solid var(--border);border-radius:19px;overflow:hidden;background:var(--panel);cursor:pointer;transition:.18s;box-shadow:0 2px 8px rgba(0,0,0,.03);display:flex;flex-direction:column}
 .place:hover{transform:translateY(-4px);box-shadow:0 14px 28px rgba(0,0,0,.09);border-color:var(--accent)}
-.place .ph{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--panel-2)}
+.place .ph{width:100%;height:auto;display:block;background:var(--panel-2)}
+.place .ph.fit1{aspect-ratio:1/1;object-fit:cover}
+.place .ph.fit34{aspect-ratio:3/4;object-fit:cover}
+.place .ph.fit43{aspect-ratio:4/3;object-fit:cover}
+.place .ph.fit169{aspect-ratio:16/9;object-fit:cover}
 .place .ph-empty{width:100%;aspect-ratio:4/3;background:var(--panel-2);display:grid;place-items:center;font-size:26px}
 .place .bd{padding:11px 13px 13px;display:flex;flex-direction:column;gap:5px;flex:1}
 .place .nm{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -841,6 +850,31 @@ function paintStarPick(el,v){
 /* ============================================================
    视图 1：东拼西凑
    ============================================================ */
+/* 尺寸框：auto=原比例完整显示；其余为统一形状框 */
+var RATIO_LABELS={auto:'原比例','1':'方形 1:1','3:4':'竖拍 3:4','4:3':'横拍 4:3','16:9':'宽幅 16:9'};
+function ratioCls(v){
+  if(v==='1') return ' fit1';
+  if(v==='3:4') return ' fit34';
+  if(v==='4:3') return ' fit43';
+  if(v==='16:9') return ' fit169';
+  return '';
+}
+function ratioSegHtml(cur){
+  return '<div class="seg ratio-seg" style="flex-wrap:wrap">'
+    + ['auto','1','3:4','4:3','16:9'].map(function(v){
+        return '<button type="button" data-v="'+v+'" class="'+((cur||'auto')===v?'on':'')+'">'+RATIO_LABELS[v]+'</button>';
+      }).join('')
+    + '</div>';
+}
+function bindRatioSeg(segEl,getV,setV){
+  segEl.addEventListener('click',function(e){
+    var b=e.target.closest('button');
+    if(!b) return;
+    setV(b.getAttribute('data-v'));
+    segEl.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on',x===b); });
+  });
+}
+
 function renderRecipes(){
   var grid=$('#notesGrid');
   var list=DB.recipes.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
@@ -851,7 +885,7 @@ function renderRecipes(){
       ? '<a class="note-link" href="'+esc(r.link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(r.link)+'">🔗 '+(r.linkText||'打开原链接')+'</a>'
       : '<span class="tiny">没贴链接</span>';
     html += '<div class="note" data-id="'+r.id+'" style="background:'+noteColor(r.id)+';transform:rotate('+rot+'deg)">'
-      + (r.photo?'<img class="note-photo" src="'+r.photo+'" alt="">':'')
+      + (r.photo?'<img class="note-photo'+ratioCls(r.ratio)+'" src="'+r.photo+'" alt="">':'')
       + '<div class="note-title">'+esc(r.title||'没写名字的配方')+'</div>'
       + (r.note?'<div class="note-body">'+esc(r.note)+'</div>':'')
       + '<div class="note-foot">'+linkHtml
@@ -900,11 +934,13 @@ function deleteRecipe(id){
 function openRecipeModal(id){
   var r = id ? DB.recipes.find(function(x){ return x.id===id; }) : null;
   var photo = r? (r.photo||'') : '';
+  var ratio = r? (r.ratio||'auto') : 'auto';
   var html = ''
     + '<div class="modal-head"><h3>'+(r?'编辑配方贴纸':'贴一张新配方')+'</h3><button class="icon-btn" data-close>✕</button></div>'
     + '<div class="field"><label>这次想做什么 · 名字</label>'
     +   '<input type="text" id="rTitle" placeholder="例：蒜香黄油虾 / 焦糖布丁（少糖版）" value="'+esc(r?r.title:'')+'"></div>'
     + '<div class="field"><label>配方截图（可选）</label><div class="drop" id="rDrop"></div></div>'
+    + '<div class="field"><label>尺寸框（竖图就选原比例，完整不裁 ✂️）</label>'+ratioSegHtml(ratio)+'</div>'
     + '<div class="field"><label>来源链接（抖音 / 小红书 / 下厨房…）</label>'
     +   '<input type="url" id="rLink" placeholder="https://..." value="'+esc(r?r.link:'')+'"></div>'
     + '<div class="field"><label>我改了什么 · 我的笔记（可选，不想写就空着）</label>'
@@ -920,6 +956,8 @@ function openRecipeModal(id){
   drop._onClear=function(){ photo=''; paintDrop(drop,'','点这里上传配方截图（可选）'); };
   bindPicker(drop,function(d){ photo=d; paintDrop(drop,d); });
 
+  bindRatioSeg($('.ratio-seg',ov),function(){ return ratio; },function(v){ ratio=v; });
+
   $('#rSave',ov).addEventListener('click',function(){
     var title=$('#rTitle',ov).value.trim();
     var link=$('#rLink',ov).value.trim();
@@ -927,9 +965,9 @@ function openRecipeModal(id){
     if(!title && !photo && !note){ toast('至少写个名字吧 🙂'); return; }
     if(link && !/^https?:\/\//i.test(link)){ toast('链接要以 http:// 或 https:// 开头'); return; }
     if(r){
-      r.title=title; r.link=link; r.note=note; r.photo=photo;
+      r.title=title; r.link=link; r.note=note; r.photo=photo; r.ratio=photo?ratio:'auto';
     }else{
-      DB.recipes.push({ id:uid(), title:title, link:link, note:note, photo:photo, createdAt:Date.now() });
+      DB.recipes.push({ id:uid(), title:title, link:link, note:note, photo:photo, ratio:photo?ratio:'auto', createdAt:Date.now() });
     }
     if(saveDB()){ closeModal(ov); renderRecipes(); renderStats(); toast(r?'改好了':'贴好了 📌'); }
   });
@@ -1411,7 +1449,7 @@ function renderTravel(){
   var html='';
   list.forEach(function(p){
     html+='<div class="place" data-id="'+p.id+'">'
-      + (p.photo? '<img class="ph" src="'+p.photo+'" alt="">' : '<div class="ph-empty">📍</div>')
+      + (p.photo? '<img class="ph'+ratioCls(p.ratio)+'" src="'+p.photo+'" alt="">' : '<div class="ph-empty">📍</div>')
       + '<div class="bd">'
       +   '<div class="nm">'+esc(p.name||'没起名字')+'</div>'
       +   '<div class="loc">📍 '+esc(p.location||'没记位置')+'</div>'
@@ -1462,6 +1500,7 @@ function renderTravel(){
 function openPlaceModal(id){
   var p = id ? DB.places.find(function(x){ return x.id===id; }) : null;
   var photo = p? (p.photo||'') : '';
+  var ratio = p? (p.ratio||'auto') : 'auto';
   var status = p? (p.status||'visited') : (placeFilter==='wish'?'wish':'visited');
   var stars = p? (p.stars||5) : 5;
 
@@ -1481,6 +1520,7 @@ function openPlaceModal(id){
     +   '<div class="field"><label id="pDateLabel">日期</label><input type="date" id="pDate" value="'+esc(p?(p.date||todayStr()):todayStr())+'"></div>'
     + '</div>'
     + '<div class="field"><label>照片</label><div class="drop" id="pDrop"></div></div>'
+    + '<div class="field"><label>尺寸框（默认原比例，完整不裁 ✂️）</label>'+ratioSegHtml(ratio)+'</div>'
     + '<div class="field" id="pStarWrap"><label>星级</label><div class="star-pick" id="pStars">'
     +   [1,2,3,4,5].map(function(i){ return '<i data-v="'+i+'">★</i>'; }).join('')
     + '</div></div>'
@@ -1496,6 +1536,8 @@ function openPlaceModal(id){
   paintDrop(drop,photo,'点这里拍一张 / 选一张');
   drop._onClear=function(){ photo=''; paintDrop(drop,'','点这里拍一张 / 选一张'); };
   bindPicker(drop,function(d){ photo=d; paintDrop(drop,d); });
+
+  bindRatioSeg($('.ratio-seg',ov),function(){ return ratio; },function(v){ ratio=v; });
 
   var starEl=$('#pStars',ov);
   bindStarPick(starEl,function(){ return stars; },function(v){ stars=v; });
@@ -1548,10 +1590,10 @@ function openPlaceModal(id){
     var nt=$('#pNote',ov).value.trim();
     if(!n && !photo){ toast('至少写个名字吧 🙂'); return; }
     if(p){
-      p.name=n; p.location=loc; p.date=dt; p.note=nt; p.photo=photo; p.status=status; p.stars=stars;
+      p.name=n; p.location=loc; p.date=dt; p.note=nt; p.photo=photo; p.status=status; p.stars=stars; p.ratio=photo?ratio:'auto';
       if(geoCoords) p.coords=geoCoords;
     }else{
-      var np={ id:uid(), name:n, location:loc, date:dt, note:nt, photo:photo, status:status, stars:stars, createdAt:Date.now() };
+      var np={ id:uid(), name:n, location:loc, date:dt, note:nt, photo:photo, status:status, stars:stars, ratio:photo?ratio:'auto', createdAt:Date.now() };
       if(geoCoords) np.coords=geoCoords;
       DB.places.push(np);
     }
