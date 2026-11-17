@@ -152,22 +152,23 @@ p{margin:0}
    ============================================================ */
 .notes{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:20px;padding-bottom:10px}
 .note{
-  position:relative;border-radius:15px;padding:16px 15px 13px;
-  border:1px solid rgba(0,0,0,.045);
-  box-shadow:0 6px 18px rgba(0,0,0,.05);
+  position:relative;border-radius:6px 6px 15px 15px;padding:26px 15px 13px;
+  border:1px solid rgba(0,0,0,.055);
+  box-shadow:0 6px 18px rgba(0,0,0,.06), 0 1px 0 rgba(0,0,0,.03) inset;
   display:flex;flex-direction:column;gap:9px;
   transition:transform .18s ease, box-shadow .18s ease;
   min-height:120px;
 }
-.note:hover{transform:translateY(-3px) rotate(0deg) !important;box-shadow:0 14px 30px rgba(0,0,0,.09)}
-.note::before{
-  content:'';position:absolute;top:-8px;left:50%;
-  transform:translateX(-50%) rotate(-2deg);
-  width:58px;height:15px;border-radius:3px;
-  background:rgba(255,255,255,.78);
-  border:1px solid rgba(0,0,0,.05);
-  box-shadow:0 1px 2px rgba(0,0,0,.04);
+.note:hover{transform:translateY(-3px) rotate(0deg) !important;box-shadow:0 14px 30px rgba(0,0,0,.10)}
+/* 圆头图钉：把便签钉在墙上 */
+.pin{
+  position:absolute;top:-10px;left:50%;transform:translateX(-50%);
+  width:22px;height:22px;border-radius:50%;
+  background:var(--pin,#e8735a);
+  box-shadow:0 3px 6px rgba(0,0,0,.25),inset -3px -4px 6px rgba(0,0,0,.18),inset 2px 3px 5px rgba(255,255,255,.55);
+  z-index:2;
 }
+.pin::after{content:'';position:absolute;top:4px;left:6px;width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.8)}
 .note > *{position:relative}
 .note-photo{width:100%;height:auto;display:block;border-radius:10px;border:1px solid rgba(255,255,255,.6);background:#fff}
 /* 尺寸框：默认原比例不裁剪，选了框才居中裁 */
@@ -175,7 +176,7 @@ p{margin:0}
 .note-photo.fit34{aspect-ratio:3/4;object-fit:cover}
 .note-photo.fit43{aspect-ratio:4/3;object-fit:cover}
 .note-photo.fit169{aspect-ratio:16/9;object-fit:cover}
-.note-title{font-size:15px;font-weight:600;line-height:1.45;word-break:break-word}
+.note-title{font-size:15px;font-weight:600;line-height:1.45;word-break:break-word;border-bottom:1px dashed rgba(0,0,0,.12);padding-bottom:6px}
 .note-body{font-size:12.8px;color:#4b5563;white-space:pre-wrap;word-break:break-word;line-height:1.72;max-height:132px;overflow:hidden}
 .note-foot{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:4px;flex-wrap:wrap}
 .note-link{font-size:12px;color:var(--accent-deep);text-decoration:none;border-bottom:1px dashed currentColor;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -464,10 +465,10 @@ p{margin:0}
 
 <div class="wrap">
   <nav class="tabs" id="tabs">
-    <button class="tab" data-tab="recipes" title="东拼西凑" aria-label="东拼西凑">🧩</button>
-    <button class="tab active" data-tab="menu" title="Menu" aria-label="Menu">🍚</button>
+    <button class="tab" data-tab="recipes" title="东拼西凑" aria-label="东拼西凑">📖</button>
+    <button class="tab active" data-tab="menu" title="Menu" aria-label="Menu">🍰</button>
     <button class="tab" data-tab="hall" title="美食殿堂" aria-label="美食殿堂">🏆</button>
-    <button class="tab" data-tab="travel" title="魔女的食物之旅" aria-label="魔女的食物之旅">🧭</button>
+    <button class="tab" data-tab="travel" title="魔女的食物之旅" aria-label="魔女的食物之旅">🔮</button>
   </nav>
 
   <!-- ============ 东拼西凑 ============ -->
@@ -875,16 +876,36 @@ function bindRatioSeg(segEl,getV,setV){
   });
 }
 
+/* 字体：给配方挑一支笔 ✒️（手机自带字体栈，选不到会优雅回退） */
+var FONT_STACKS={
+  default:'',
+  kai:"'Kaiti SC','STKaiti','KaiTi','楷体','Songti SC',serif",
+  round:"'Yuanti SC','幼圆','YouYuan','Varela Round','Quicksand','Hiragino Maru Gothic ProN',sans-serif",
+  hand:"'Segoe Script','Bradley Hand','Comic Sans MS','Xingkai SC','STXingkai','Kaiti SC',cursive"
+};
+var FONT_LABELS={default:'默认字',kai:'楷体手写',round:'圆润可爱',hand:'马克笔涂鸦'};
+var PIN_COLORS=['#e8735a','#5a9bd8','#f0b429','#7fb069','#b4a7d6'];
+function noteFont(id){ var f=(DB.recipes.find(function(x){return x.id===id;})||{}).font; return FONT_STACKS[f||'default']||''; }
+function fontSegHtml(cur){
+  return '<div class="seg ratio-seg" id="fontSeg" style="flex-wrap:wrap">'
+    + ['default','kai','round','hand'].map(function(f){
+        return '<button type="button" data-f="'+f+'" class="'+((cur||'default')===f?'on':'')+'">'+FONT_LABELS[f]+'</button>';
+      }).join('')
+    + '</div>';
+}
+
 function renderRecipes(){
   var grid=$('#notesGrid');
   var list=DB.recipes.slice().sort(function(a,b){ return (b.createdAt||0)-(a.createdAt||0); });
   var html='';
   list.forEach(function(r){
     var rot=noteRot(r.id);
+    var pinC=PIN_COLORS[hashOf(r.id)%PIN_COLORS.length];
     var linkHtml = r.link
       ? '<a class="note-link" href="'+esc(r.link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(r.link)+'">🔗 '+(r.linkText||'打开原链接')+'</a>'
       : '<span class="tiny">没贴链接</span>';
-    html += '<div class="note" data-id="'+r.id+'" style="background:'+noteColor(r.id)+';transform:rotate('+rot+'deg)">'
+    html += '<div class="note" data-id="'+r.id+'" style="background:'+noteColor(r.id)+';transform:rotate('+rot+'deg);'+(FONT_STACKS[r.font||'default']?'font-family:'+FONT_STACKS[r.font||'default']:'')+'">'
+      + '<span class="pin" style="--pin:'+pinC+'"></span>'
       + (r.photo?'<img class="note-photo'+ratioCls(r.ratio)+'" src="'+r.photo+'" alt="">':'')
       + '<div class="note-title">'+esc(r.title||'没写名字的配方')+'</div>'
       + (r.note?'<div class="note-body">'+esc(r.note)+'</div>':'')
@@ -935,10 +956,13 @@ function openRecipeModal(id){
   var r = id ? DB.recipes.find(function(x){ return x.id===id; }) : null;
   var photo = r? (r.photo||'') : '';
   var ratio = r? (r.ratio||'auto') : 'auto';
+  var font = r? (r.font||'default') : 'default';
   var html = ''
     + '<div class="modal-head"><h3>'+(r?'编辑配方贴纸':'贴一张新配方')+'</h3><button class="icon-btn" data-close>✕</button></div>'
     + '<div class="field"><label>这次想做什么 · 名字</label>'
     +   '<input type="text" id="rTitle" placeholder="例：蒜香黄油虾 / 焦糖布丁（少糖版）" value="'+esc(r?r.title:'')+'"></div>'
+    + '<div class="field"><label>✒️ 字体（点一下试试手感）</label>'+fontSegHtml(font)
+    +   '<div id="fontPrev" style="margin-top:6px;font-size:14px;line-height:1.7;color:var(--text);background:var(--panel-2);border-radius:10px;padding:8px 12px">今天也要好好吃饭哦 🍰</div></div>'
     + '<div class="field"><label>配方截图（可选）</label><div class="drop" id="rDrop"></div></div>'
     + '<div class="field"><label>尺寸框（竖图就选原比例，完整不裁 ✂️）</label>'+ratioSegHtml(ratio)+'</div>'
     + '<div class="field"><label>来源链接（抖音 / 小红书 / 下厨房…）</label>'
@@ -958,6 +982,17 @@ function openRecipeModal(id){
 
   bindRatioSeg($('.ratio-seg',ov),function(){ return ratio; },function(v){ ratio=v; });
 
+  // 字体 seg + 实时预览
+  var fontPrev=$('#fontPrev',ov);
+  fontPrev.style.fontFamily=FONT_STACKS[font]||'';
+  $('#fontSeg',ov).addEventListener('click',function(e){
+    var b=e.target.closest('button');
+    if(!b) return;
+    font=b.getAttribute('data-f');
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on',x===b); });
+    fontPrev.style.fontFamily=FONT_STACKS[font]||'';
+  });
+
   $('#rSave',ov).addEventListener('click',function(){
     var title=$('#rTitle',ov).value.trim();
     var link=$('#rLink',ov).value.trim();
@@ -965,9 +1000,9 @@ function openRecipeModal(id){
     if(!title && !photo && !note){ toast('至少写个名字吧 🙂'); return; }
     if(link && !/^https?:\/\//i.test(link)){ toast('链接要以 http:// 或 https:// 开头'); return; }
     if(r){
-      r.title=title; r.link=link; r.note=note; r.photo=photo; r.ratio=photo?ratio:'auto';
+      r.title=title; r.link=link; r.note=note; r.photo=photo; r.ratio=photo?ratio:'auto'; r.font=font;
     }else{
-      DB.recipes.push({ id:uid(), title:title, link:link, note:note, photo:photo, ratio:photo?ratio:'auto', createdAt:Date.now() });
+      DB.recipes.push({ id:uid(), title:title, link:link, note:note, photo:photo, ratio:photo?ratio:'auto', font:font, createdAt:Date.now() });
     }
     if(saveDB()){ closeModal(ov); renderRecipes(); renderStats(); toast(r?'改好了':'贴好了 📌'); }
   });
